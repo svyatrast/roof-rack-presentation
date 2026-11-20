@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Запаска S31 — 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* VOICE: інженерний, спокійний — як аркуш складального креслення на столі контролера.
+   IDEA: 3D-складальне креслення без розмірів: деталі з номерами позицій, карта напружень, анімації.
+   PICTURE: великий 3D-вид виробу на машині, кольорова карта МСЕ поверх деталей.
+   COLOUR and TYPE: камінь #e7e4df, чорний, цегла #c8371e як акцент; Schibsted Grotesk.
+   LAYOUT: заголовок-висновок, вид на всю ширину, під ним керування і легенда; на телефоні — у стовпчик. */
+:root{color-scheme:light dark;--bg:light-dark(#e7e4df,#171513);--ink:light-dark(#141414,#ece8e2);--mut:light-dark(#5b5853,#a8a39b);--pan:light-dark(#ffffff,#22201d);--line:light-dark(#cfcac2,#3a3732);--acc:#c8371e}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Schibsted Grotesk",system-ui,sans-serif;overflow-x:clip}
+header{padding:20px max(4vw,16px) 12px;display:flex;flex-wrap:wrap;gap:8px 28px;align-items:end;justify-content:space-between}
+h1{font-size:clamp(24px,3.4vw,40px);line-height:1.05;margin:0;text-wrap:balance;font-weight:700}
+header p{margin:0;max-width:62ch;color:var(--mut)}
+.stage{position:relative;margin:0 max(4vw,16px);height:min(68vh,760px);min-height:380px;border:1px solid var(--line);background:linear-gradient(light-dark(#f4f2ee,#1f1d1a),light-dark(#dcd8d1,#121110))}
+.stage canvas{position:absolute;inset:0;width:100%!important;height:100%!important;touch-action:none}
+.cap{position:absolute;left:14px;right:14px;top:12px;font-weight:600;font-size:15px;pointer-events:none;text-shadow:0 1px 0 light-dark(#fff,#000)}
+.cap small{display:block;font-weight:400;color:var(--mut)}
+.legend{position:absolute;left:14px;bottom:12px;background:var(--pan);border:1px solid var(--line);padding:8px 10px;font-size:13px;width:min(320px,calc(100% - 28px))}
+.bar{height:12px;margin:6px 0 2px;position:relative}
+.ticks{display:flex;justify-content:space-between;color:var(--mut);font-variant-numeric:tabular-nums}
+.yield{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink)}
+.card{position:absolute;right:12px;bottom:12px;background:var(--pan);border:1px solid var(--line);padding:10px 12px;max-width:min(300px,calc(100% - 24px));font-size:14px;display:none}
+.card b{display:block;font-size:15px}.card .poz{color:var(--acc);font-weight:700}
+.load{position:absolute;inset:0;display:grid;place-items:center;color:var(--mut)}
+.ctl{margin:12px max(4vw,16px) 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px}
+.grp{background:var(--pan);border:1px solid var(--line);padding:12px}
+.grp h2{font-size:13px;margin:0 0 8px;color:var(--mut);font-weight:600}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button,select{font:inherit;font-size:15px;min-height:44px;padding:0 14px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+button.go{background:var(--acc);color:#fff;border-color:var(--acc)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+select{flex:1 1 220px}
+label.sl{display:grid;grid-template-columns:7.5em 1fr 3.2em;gap:8px;align-items:center;width:100%;font-size:14px}
+input[type=range]{width:100%;accent-color:var(--acc);height:44px}
+.out{text-align:right;font-variant-numeric:tabular-nums}
+.chk{display:flex;gap:6px;align-items:center;min-height:44px;font-size:15px}
+.chk input{width:20px;height:20px;accent-color:var(--acc)}
+.notes{margin:14px max(4vw,16px) 28px;color:var(--mut);font-size:14px;max-width:110ch}
+.notes b{color:var(--ink)}
+@media(max-width:600px){.stage{height:58vh}.legend{font-size:12px}.cap{font-size:14px}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<header>
+<div><h1 data-i="h1">Кріплення запаски S31 — 3D-збірка і напруження</h1>
+<p data-i="lead">Колесо 31″ 50 кг. У їзді найбільші напруження 77–80 МПа, межа текучості 235 МПа. Перевищення є лише на відкритій калітці з подвійним навантаженням.</p></div>
+<div class="row" role="group" aria-label="Мова / Language"><button id="lUK" class="on" lang="uk">UA</button><button id="lEN" lang="en">EN</button></div>
+</header>
+<div class="stage" id="stage">
+<div class="load" id="load" data-i="loading">Завантаження моделі…</div>
+<div class="cap" id="cap"></div>
+<div class="legend" id="legend" hidden>
+<div id="lgT" data-i="lgT">σ Мізеса, МПа</div>
+<div class="bar" id="bar"><div class="yield" id="yl" title="σт 235"></div></div>
+<div class="ticks" id="ticks"></div>
+<div style="margin-top:4px;color:var(--mut)" id="lgN"></div>
+</div>
+<div class="card" id="card"></div>
+</div>
+<div class="ctl">
+<div class="grp"><h2 data-i="gAnim">Анімація</h2><div class="row">
+<button class="go" id="bAsm" data-i="bAsm">▶ Збірка на авто</button><button class="go" id="bOpen" data-i="bOpen">▶ Відкривання 180°</button><button id="bStop" data-i="bStop">■ Стоп</button></div></div>
+<div class="grp"><h2 data-i="gView">Вигляд</h2><div class="row">
+<button class="on" id="mMetal" data-i="mMetal">Метал</button><button id="mStress" data-i="mStress">Напруження</button>
+<select id="lc" aria-label="Розрахунковий випадок"></select></div>
+<div class="row" style="margin-top:6px"><span style="font-size:14px;color:var(--mut)" data-i="scale">Шкала</span><button id="sc100" data-i="sc100">0–100 МПа</button><button class="on" id="sc250" data-i="sc250">0–250 МПа</button></div></div>
+<div class="grp"><h2 data-i="gPos">Положення</h2>
+<label class="sl"><span data-i="sExp">Рознесення</span><input type="range" id="sExp" min="0" max="100" value="0"><span class="out" id="oExp">0 %</span></label>
+<label class="sl"><span data-i="sAng">Калітка</span><input type="range" id="sAng" min="0" max="180" value="0"><span class="out" id="oAng">0°</span></label></div>
+<div class="grp"><h2 data-i="gShow">Показати</h2><div class="row">
+<label class="chk"><input type="checkbox" id="cCar" checked><span data-i="cCar">Авто</span></label>
+<label class="chk"><input type="checkbox" id="cGlass"><span data-i="cGlass">Авто прозоре</span></label>
+<label class="chk"><input type="checkbox" id="cWheel" checked><span data-i="cWheel">Колесо</span></label>
+<label class="chk"><input type="checkbox" id="cEdge" checked><span data-i="cEdge">Ребра</span></label></div>
+<div class="row" style="margin-top:6px"><button id="vRear" data-i="vRear">Ззаду</button><button id="vIso">3/4</button><button id="vSide" data-i="vSide">Збоку</button><button id="vTop" data-i="vTop">Зверху</button><button id="vHinge" data-i="vHinge">Петля</button></div></div>
+</div>
+<div class="notes" data-i="notes"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+{
+const $ = id => document.getElementById(id);
+const I18N = {
+uk:{title:"Запаска S31 — 3D", h1:"Кріплення запаски S31 — 3D-збірка і напруження",
+ lead:"Колесо 31″ 50 кг. У їзді найбільші напруження 77–80 МПа, межа текучості 235 МПа. Перевищення є лише на відкритій калітці з подвійним навантаженням.",
+ loading:"Завантаження моделі…", loadErr:"Не вдалося завантажити модель: ", lgT:"σ Мізеса, МПа", gAnim:"Анімація", bAsm:"▶ Збірка на авто", bOpen:"▶ Відкривання 180°", bStop:"■ Стоп",
+ gView:"Вигляд", mMetal:"Метал", mStress:"Напруження", lcAria:"Розрахунковий випадок", scale:"Шкала", sc100:"0–100 МПа", sc250:"0–250 МПа", gPos:"Положення", sExp:"Рознесення", sAng:"Калітка",
+ gShow:"Показати", cCar:"Авто", cGlass:"Авто прозоре", cWheel:"Колесо", cEdge:"Ребра", vRear:"Ззаду", vSide:"Збоку", vTop:"Зверху", vHinge:"Петля",
+ notes:"<b>Як читати.</b> Торкніться деталі, щоб побачити назву, номер позиції з креслення і напруження в цій точці. Вузол щік (кінець поперечки) і вузол губ зі стійкою — локальна МСЕ з тетраедрів, σ Мізеса усереднена по вузлах сітки, тому піки трохи нижчі за p999 у звіті. Решта деталей — номінальні напруження балкової моделі. Для відкритої калітки (LC8b) вузол губ показано за балковою моделлю, бо локальної моделі для цього випадку немає. Авто — спрощена модель, вісь муфт на висоті 600 мм від землі. Колесо 31×10.5 R18 показано умовно. Джерело: звіт 48_SPARE_S31_FEM_DRAWINGS, rev 20.11.2026.",
+ yieldNote:"Риска — межа текучості 235 МПа. ", hiNote:"Вище 100 МПа — бордо. ", greyNote:"Сірі деталі — розрахунку немає.", mpa:"МПа",
+ step:(s) => "Збірка — крок " + s + " з 8", opening:"Відкривання", openSub:"Вільний кінець іде назад; колесо 31″ проходить біля бампера й ліхтаря",
+ feJ:"Вузол щік петлі (кінець поперечки)", feP:"Вузол губ і стійки на калітці", feSub:"Локальна МСЕ, σ Мізеса по вузлах", poz:"поз.", beam:"Номінальне, балкова модель", noData:"Розрахунку для цієї деталі немає",
+ LCN:{"LC1 стоянка 1g":"LC1 · стоянка 1g","LC2 яма 3g":"LC2 · яма 3g","LC4 гальмування 1g + 1g":"LC4 · гальмування 1g + 1g","LC6 поворот 1g (+x) + 1g":"LC6 · поворот 1g + 1g","LC8b відкрита 90° 2g":"LC8b · відкрита 90°, 2g"},
+ STEPS:["",
+ "1 · Муфти поз.20 вкручуються лівою різьбою в проушини на 50 мм, затяжка 100–120 Н·м",
+ "2 · Вузол А (поперечка) насувається на муфти: права втулка по різьбі, ліва — у пазу ±4",
+ "3 · Гайки Б із шайбами — 100–120 Н·м, мітки фарбою",
+ "4 · Прокладки ПЕ 3 мм на задню грань поперечки, гвинти M4 потай",
+ "5 · Вузол Б (калітка, стійка, циліндр із втулками) заходить між щоками",
+ "6 · Болт петлі M18×120, шайби, гайка DIN 985; люфт 0,2–0,5 мм",
+ "7 · Колесо 31″ на 3 болти, шина спирається на стійку з натягом ≤ 3 мм",
+ "8 · Замок закрито — натяг на прокладках губ 0,2–0,3 мм"]},
+en:{title:"Spare carrier S31 — 3D", h1:"Spare wheel carrier S31 — 3D assembly and stresses",
+ lead:"31″ wheel, 50 kg. In driving the highest stresses are 77–80 MPa against a 235 MPa yield strength. Yield is exceeded only on the open gate under double load.",
+ loading:"Loading model…", loadErr:"Could not load the model: ", lgT:"von Mises σ, MPa", gAnim:"Animation", bAsm:"▶ Assembly on the car", bOpen:"▶ Opening 180°", bStop:"■ Stop",
+ gView:"View", mMetal:"Metal", mStress:"Stress", lcAria:"Load case", scale:"Scale", sc100:"0–100 MPa", sc250:"0–250 MPa", gPos:"Position", sExp:"Explode", sAng:"Gate",
+ gShow:"Show", cCar:"Car", cGlass:"See-through car", cWheel:"Wheel", cEdge:"Edges", vRear:"Rear", vSide:"Side", vTop:"Top", vHinge:"Hinge",
+ notes:"<b>How to read it.</b> Tap a part to see its name, item number from the drawings and the stress at that point. The hinge-jaw zone (crossbar end) and the lip-and-post zone are local solid FEA; von Mises stress is averaged at mesh nodes. All other parts show nominal stresses from the beam model. The car is a simplified model with the coupling axis 600 mm above ground. The 31×10.5 R18 wheel is indicative.",
+ yieldNote:"Tick — yield strength 235 MPa. ", hiNote:"Above 100 MPa — maroon. ", greyNote:"Grey parts — not analysed.", mpa:"MPa",
+ step:(s) => "Assembly — step " + s + " of 8", opening:"Opening", openSub:"Free end swings rearward; the 31″ wheel clears the bumper and tail lamp",
+ feJ:"Hinge-jaw zone (crossbar end)", feP:"Lip and post zone on the gate", feSub:"Local FEA, von Mises σ at nodes", poz:"item", beam:"Nominal, beam model", noData:"No analysis for this part",
+ LCN:{"LC1 стоянка 1g":"LC1 · parked 1g","LC2 яма 3g":"LC2 · pothole 3g","LC4 гальмування 1g + 1g":"LC4 · braking 1g + 1g","LC6 поворот 1g (+x) + 1g":"LC6 · cornering 1g + 1g","LC8b відкрита 90° 2g":"LC8b · open 90°, 2g"},
+ STEPS:["",
+ "1 · Couplings (item 20) screw into the towing eyes by their LH thread, 50 mm deep, torque 100–120 N·m",
+ "2 · Weldment A (crossbar) slides onto the couplings: right sleeve on the thread, left one in the ±4 slot",
+ "3 · Nuts B with washers — 100–120 N·m, paint marks",
+ "4 · 3 mm UHMW-PE pads on the crossbar rear face, M4 countersunk screws",
+ "5 · Weldment B (gate, post, barrel with bushings) goes between the jaws",
+ "6 · Hinge bolt M18×120, washers, DIN 985 nut; end play 0.2–0.5 mm",
+ "7 · 31″ wheel on 3 bolts, tyre bears on the post with ≤ 3 mm preload",
+ "8 · Latch closed — 0.2–0.3 mm preload on the lip pads"]}};
+const PART_EN = {cplL:"Coupling, left: A M18×2.5 LH 50 into body, hex 27, B M18 62", cplR:"Coupling, right: A M18×2.5 LH 50 into body, hex 27, B M18 62",
+ nutL:"Nut B M18 ISO 4032 + washer", nutR:"Nut B M18 ISO 4032 + washer", cb_main:"Crossbar RHS 40×60×3 (weldment A)", cb_end:"Crossbar — hinge end",
+ capL:"End cap 3 mm, Ø6 drain", capR:"End cap 3 mm, Ø6 drain", capG:"Gate end cap", slvR:"Right sleeve Ø28/19 (welded)", slvL:"Left sleeve Ø28/19 (floating in slot)",
+ jaw:"Hinge jaw — angle 90×35×60 from L100×100×7", jsh:"Spacer 4×60×28 under jaw", padz:"UHMW-PE pad 3 mm (gate–crossbar)",
+ gate_a:"Gate RHS 40×60×3 (weldment B)", gate_b:"Gate — lip and post zone", gate_c:"Gate RHS 40×60×3 (weldment B)", barrel:"Hinge barrel Ø40/30×60",
+ bush:"Hinge bushing, case hardened, Ø40×3.25 + Ø30×30.75", lip:"Lip — angle 90×35×60 from L100×100×7", lsh:"Spacer 4×60×28 under lip", pady:"UHMW-PE pad 4 mm under lip (M5 countersunk)",
+ post_a:"Post RHS 40×60×3", post_b:"Post RHS 40×60×3", gus:"Side gusset 3 mm", gusf:"Front gusset 3 mm", arm:"L-arm RHS 40×60×3, 13.5°",
+ plate:"Plate 3 mm, 3 holes Ø15 on PCD 130", dbl:"Doubler 100×76×4", latch:"Draw latch", bolt:"Bolt M18×120 10.9 + DIN 125 washers + DIN 985 nut",
+ tire:"Tyre 31×10.5 R18", rim:"18″ rim (indicative, ET57*)"};
+const POZ_EN = {"4б":"4b", "5а":"5a", "5б":"5b"};
+let LANG = "uk";
+try { LANG = location.hash === "#en" ? "en" : location.hash === "#uk" ? "uk" : (localStorage.getItem("s31lang") || "uk"); } catch (e) {}
+const L = k => I18N[LANG][k];
+const partName = p => LANG === "en" ? (PART_EN[p.id] || PART_EN[p.id.replace(/-?\d+$/, "")] || p.name) : p.name;
+const partPoz = p => LANG === "en" ? (POZ_EN[p.poz] || p.poz) : p.poz;
+function setLang(l) {
+  LANG = l; try { localStorage.setItem("s31lang", l); } catch (e) {}
+  document.documentElement.lang = l; document.title = L("title");
+  for (const el of document.querySelectorAll("[data-i]")) { const v = L(el.dataset.i); if (v !== undefined) el.innerHTML = v; }
+  $("lc").setAttribute("aria-label", L("lcAria"));
+  $("lUK").classList.toggle("on", l === "uk"); $("lEN").classList.toggle("on", l === "en");
+  if (M) { const sel = $("lc"); sel.innerHTML = M.lcs.map(x => `<option value="${x}">${L("LCN")[x] || x}</option>`).join(""); sel.value = lc; }
+  legend(); $("card").style.display = "none";
+}
+const MAT = {steel:0x34383e, steel_bright:0xb4bbc3, zinc:0xc9cdd2, bronze:0xb08d57, pe:0xf3f2ec, tire:0x1b1b1d, rim:0x8f969e};
+const dec = (b, T) => { const s = atob(b), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return new T(u.buffer); };
+// шкала: синій → блакитний → зелений → жовтий → червоний → бордо (> σт)
+const STOPS = [[0,[0.17,0.27,0.68]],[0.2,[0.12,0.6,0.86]],[0.4,[0.25,0.75,0.42]],[0.6,[0.95,0.83,0.2]],[0.8,[0.93,0.42,0.13]],[0.94,[0.78,0.12,0.12]],[1,[0.45,0.03,0.2]]];
+let SC = 250;
+const cmap = v => { const t = Math.min(Math.max(v / SC, 0), 1); for (let i = 1; i < STOPS.length; i++) if (t <= STOPS[i][0]) { const [a, ca] = STOPS[i-1], [b, cb] = STOPS[i]; const f = (t - a) / (b - a); return ca.map((c, k) => c + (cb[k] - c) * f); } return STOPS[STOPS.length-1][1]; };
+$("bar").style.background = "linear-gradient(90deg," + STOPS.map(([t, c]) => `rgb(${c.map(x => Math.round(x * 255)).join(",")}) ${t * 100}%`).join(",") + ")";
+function legend() {
+  $("yl").style.display = SC >= 235 ? "block" : "none"; $("yl").style.left = (235 / SC * 100) + "%";
+  $("ticks").innerHTML = [0, 1, 2, 3, 4, 5].map(i => `<span>${SC / 5 * i}${i === 5 ? "+" : ""}</span>`).join("");
+  $("lgN").textContent = (SC >= 235 ? L("yieldNote") : L("hiNote")) + L("greyNote");
+  $("sc100").classList.toggle("on", SC === 100); $("sc250").classList.toggle("on", SC === 250);
+}
+legend();
+
+const stage = $("stage");
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); stage.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+const th = document.documentElement.dataset.theme, dark = th === "dark" || (!th && matchMedia("(prefers-color-scheme: dark)").matches);
+scene.background = new THREE.Color(dark ? 0x1d1b19 : 0xeceae5);
+const cam = new THREE.PerspectiveCamera(35, 1, 10, 40000);
+const ctr = new THREE.OrbitControls(cam, renderer.domElement); ctr.enableDamping = true; ctr.dampingFactor = 0.08;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8478, 0.75));
+const sun = new THREE.DirectionalLight(0xffffff, 0.75); sun.position.set(1500, 3000, 2500); scene.add(sun);
+const fill = new THREE.DirectionalLight(0xffffff, 0.3); fill.position.set(-2000, 800, -1000); scene.add(fill);
+const resize = () => { const w = stage.clientWidth, h = stage.clientHeight; renderer.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); };
+const ro = new ResizeObserver(resize); ro.observe(stage);
+
+let M = null, mode = "metal", lc = null, angle = 0, explode = 0, anim = null;
+setLang(LANG);
+const parts = [], pick = [];
+const root = new THREE.Group(); scene.add(root);
+const gate = new THREE.Group(), wheel = new THREE.Group(); root.add(gate); gate.add(wheel);
+const ghost = new THREE.MeshLambertMaterial({color:0x9a9a9a, transparent:true, opacity:0.18, depthWrite:false, side:THREE.DoubleSide});
+const edgeMat = new THREE.LineBasicMaterial({color:0x0d0d0d, transparent:true, opacity:0.55});
+
+function geom(vb, fb, flat, T) {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(T === Int16Array ? new Float32Array(dec(vb, Int16Array)) : dec(vb, Float32Array), 3));
+  g.setIndex(new THREE.BufferAttribute(dec(fb, Uint32Array), 1));
+  return g;
+}
+function finish(g, flat) { const h = flat ? g.toNonIndexed() : g; h.computeVertexNormals(); return h; }
+function prep(g0, flat, sMap) {          // геометрія з атрибутом кольору + відповідність вершин → вузлам
+  const g = finish(g0.clone(), flat), n = g.attributes.position.count;
+  g.setAttribute("color", new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+  const map = flat ? g0.index.array : null;
+  const S = {}; for (const [k, b] of Object.entries(sMap)) S[k] = b ? dec(b, Uint8Array) : null;
+  return {g, map, S};
+}
+const sAt = (o, i) => { const s = o.S[lc]; return s ? s[o.map ? o.map[i] : i] * 2 : null; };
+function recolor(o) {
+  const c = o.g.attributes.color.array, n = c.length / 3;
+  for (let i = 0; i < n; i++) { const v = sAt(o, i); c.set(v === null ? [0.62, 0.63, 0.65] : cmap(v), i * 3); }
+  o.g.attributes.color.needsUpdate = true;
+}
+function build() {
+  const hp = new THREE.Vector3(...M.hinge);
+  gate.position.copy(hp);
+  const pivotOf = p => p.grp === "static" ? new THREE.Vector3() : hp;
+  for (const p of M.parts) {
+    const g0 = geom(p.v, p.f);
+    const pr = prep(g0, !p.smooth, p.s);
+    const mat = new THREE.MeshStandardMaterial({color:MAT[p.mat] || 0x777777, metalness:p.mat === "steel" ? 0.25 : 0.45, roughness:p.mat === "pe" ? 0.8 : 0.55, side:THREE.DoubleSide, flatShading:!p.smooth});
+    const smat = new THREE.MeshLambertMaterial({vertexColors:true, side:THREE.DoubleSide});
+    const mesh = new THREE.Mesh(pr.g, mat);
+    const parent = p.grp === "static" ? root : p.grp === "gate" ? gate : wheel;
+    const off = pivotOf(p);
+    // вісь обертання для «закручування»
+    let piv = new THREE.Group(); parent.add(piv);
+    g0.computeBoundingBox(); const c = g0.boundingBox.getCenter(new THREE.Vector3()).sub(off);
+    const axisC = p.spin === "z" ? new THREE.Vector3(c.x, c.y, 0) : p.spin === "y" ? new THREE.Vector3(c.x, 0, c.z) : new THREE.Vector3();
+    piv.position.copy(axisC); mesh.position.copy(off.clone().negate().sub(axisC));
+    piv.add(mesh);
+    let edges = null;
+    if (p.mat !== "tire" && !p.smooth) { edges = new THREE.LineSegments(new THREE.EdgesGeometry(g0, 28), edgeMat); edges.position.copy(mesh.position); piv.add(edges); }
+    const o = {p, piv, mesh, edges, mat, smat, g:pr.g, map:pr.map, S:pr.S, base:axisC.clone(), exp:new THREE.Vector3(...p.exp)};
+    mesh.userData.o = o; parts.push(o); pick.push(mesh);
+  }
+  // поля МСЕ
+  for (const k of ["J", "P"]) {
+    const f = M.fe[k]; const pr = prep(geom(f.v, f.f), false, f.s);
+    const mesh = new THREE.Mesh(pr.g, new THREE.MeshLambertMaterial({vertexColors:true, side:THREE.DoubleSide}));
+    if (f.grp === "gate") mesh.position.copy(hp).negate();
+    (f.grp === "gate" ? gate : root).add(mesh); mesh.visible = false;
+    Object.assign(M.fe[k], {mesh, g:pr.g, map:null, S:pr.S, geos:pr.S});
+    mesh.userData.fe = k; pick.push(mesh);
+  }
+  // авто і земля
+  const cg = finish(geom(M.car.v, M.car.f, true, Int16Array), true);
+  M.carMat = new THREE.MeshStandardMaterial({color:0xc9ced4, metalness:0.1, roughness:0.75, side:THREE.DoubleSide, flatShading:true, polygonOffset:true, polygonOffsetFactor:1, polygonOffsetUnits:1});
+  M.carMesh = new THREE.Mesh(cg, M.carMat); scene.add(M.carMesh);
+  const grd = new THREE.Mesh(new THREE.CircleGeometry(5200, 64), new THREE.MeshLambertMaterial({color:0xb9b3a8, transparent:true, opacity:0.35}));
+  grd.rotation.x = -Math.PI / 2; grd.position.y = M.ground - 1; scene.add(grd);
+  lc = M.lcs[0]; setLang(LANG);
+  view("iso"); apply(); $("load").remove();
+}
+function apply() {
+  const st = mode === "stress";
+  $("legend").hidden = !st;
+  const feOn = k => st && M.fe[k].geos[lc];
+  for (const k of ["J", "P"]) { const f = M.fe[k]; f.mesh.visible = !!feOn(k); if (st && f.S[lc]) recolor(f); }
+  for (const o of parts) {
+    const hide = o.p.fe && feOn(o.p.fe);
+    o.piv.visible = !hide && (o.p.grp !== "wheel" || $("cWheel").checked);
+    o.mesh.material = st ? (o.p.grp === "wheel" ? ghost : o.smat) : o.mat; if (st) recolor(o);
+    if (o.edges) o.edges.visible = $("cEdge").checked;
+  }
+  wheel.visible = $("cWheel").checked;
+  M.carMesh.visible = $("cCar").checked;
+  M.carMat.transparent = $("cGlass").checked; M.carMat.opacity = $("cGlass").checked ? 0.25 : 1; M.carMat.depthWrite = !$("cGlass").checked;
+  $("mMetal").classList.toggle("on", !st); $("mStress").classList.toggle("on", st);
+}
+function pose(t) {                      // t: стан анімації збірки (крок + частка) або null
+  for (const o of parts) {
+    let k = explode, show = true, spin = 0;
+    if (t !== null) {
+      const s = o.p.step; if (t < s - 1) { show = false; k = 1; } else { const f = Math.min(Math.max(t - (s - 1), 0), 1); k = 1 - ease(f); }
+    }
+    o.piv.position.copy(o.base).addScaledVector(o.exp, k);
+    if (o.p.spin) { spin = k * Math.PI * 10; if (o.p.spin === "z") o.piv.rotation.z = spin; else o.piv.rotation.y = spin; }
+    if (t !== null) o.piv.visible = show && !(o.p.grp === "wheel" && !$("cWheel").checked);
+  }
+  for (const k of ["J", "P"]) { const f = M.fe[k]; if (f.mesh) f.mesh.visible = mode === "stress" && !!f.geos[lc] && t === null; }
+  gate.rotation.y = angle * Math.PI / 180;
+}
+const ease = f => f < 0.5 ? 2 * f * f : 1 - (-2 * f + 2) ** 2 / 2;
+function view(v) {
+  const T = {rear:[[60, 500, 3700], [60, 300, 0]], iso:[[1650, 900, 1900], [80, 150, 0]], side:[[3400, 500, 300], [0, 150, -300]], top:[[60, 3600, 400], [60, 0, 0]], hinge:[[1050, 420, 650], [600, 20, 60]]}[v];
+  cam.position.set(...T[0]); ctr.target.set(...T[1]); ctr.update();
+}
+function setAngle(a) { angle = a; $("sAng").value = Math.round(a); $("oAng").textContent = Math.round(a) + "°"; }
+function startAsm() {
+  stop(); explode = 0; $("sExp").value = 0; $("oExp").textContent = "0 %"; setAngle(0);
+  anim = {kind:"asm", t0:performance.now()}; view("iso");
+}
+function startOpen() { stop(); anim = {kind:"open", t0:performance.now()}; }
+function stop() { anim = null; $("cap").innerHTML = ""; pose(null); apply(); }
+const DUR = {asm:8.6 * 1.4, open:9.5};
+function animAt(kind, sec) {            // стан анімації в момент sec; true — завершено
+  if (kind === "asm") {
+    const t = sec / 1.4;
+    if (t > 8.6) return true;
+    const s = Math.min(Math.floor(t) + 1, 8); $("cap").innerHTML = L("STEPS")[s] + "<small>" + L("step")(s) + "</small>"; pose(t); return false;
+  }
+  let a, done = false;
+  if (sec < 4) a = 180 * ease(sec / 4); else if (sec < 5.5) a = 180; else if (sec < 9.5) a = 180 * (1 - ease((sec - 5.5) / 4)); else { a = 0; done = true; }
+  setAngle(a); pose(null);
+  $("cap").innerHTML = done ? "" : `${L("opening")}: ${Math.round(a)}°<small>${L("openSub")}</small>`;
+  return done;
+}
+function tick(now) {
+  if (anim && !anim.ext) { if (animAt(anim.kind, (now - anim.t0) / 1000)) { anim.kind === "asm" ? stop() : (anim = null); } }
+  ctr.update(); renderer.render(scene, cam); requestAnimationFrame(tick);
+}
+window.S31 = {                          // керування для запису відео
+  frame(kind, sec, pos, tgt) { anim = {ext:true}; animAt(kind, sec); if (pos) { cam.position.set(...pos); ctr.target.set(...tgt); } ctr.update(); renderer.render(scene, cam); },
+  end() { stop(); }, dbg:() => ({scene, M, renderer}), lang:setLang
+};
+// вибір деталі
+const ray = new THREE.Raycaster(); let down = null;
+renderer.domElement.addEventListener("pointerdown", e => { down = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener("pointerup", e => {
+  if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 6) return;
+  const r = renderer.domElement.getBoundingClientRect();
+  ray.setFromCamera({x:(e.clientX - r.left) / r.width * 2 - 1, y:-(e.clientY - r.top) / r.height * 2 + 1}, cam);
+  const hit = ray.intersectObjects(pick.filter(m => m.visible && m.parent.visible && (!m.parent.parent || m.parent.parent.visible)), false)[0];
+  const card = $("card");
+  if (!hit) { card.style.display = "none"; return; }
+  let html, val = null;
+  const fa = hit.face, near = o => Math.max(...[fa.a, fa.b, fa.c].map(i => sAt(o, i) ?? -1));
+  if (hit.object.userData.fe) {
+    const k = hit.object.userData.fe; val = near(M.fe[k]);
+    html = `<b>${k === "J" ? L("feJ") : L("feP")}</b>${L("feSub")}<br>`;
+  } else {
+    const o = hit.object.userData.o;
+    html = `<span class="poz">${L("poz")} ${partPoz(o.p)}</span><b>${partName(o.p)}</b>`;
+    if (mode === "stress") { if (o.S[lc]) { val = near(o); html += L("beam") + "<br>"; } else html += L("noData"); }
+  }
+  if (val !== null && val >= 0 && mode === "stress") html += `σ ≈ ${Math.round(val)} ${L("mpa")} · ${L("LCN")[lc]}`;
+  card.innerHTML = html; card.style.display = "block";
+});
+$("lUK").onclick = () => setLang("uk"); $("lEN").onclick = () => setLang("en");
+addEventListener("hashchange", () => { if (location.hash === "#en" || location.hash === "#uk") setLang(location.hash.slice(1)); });
+$("sc100").onclick = () => { SC = 100; legend(); apply(); }; $("sc250").onclick = () => { SC = 250; legend(); apply(); };
+$("bAsm").onclick = startAsm; $("bOpen").onclick = startOpen; $("bStop").onclick = stop;
+$("mMetal").onclick = () => { mode = "metal"; apply(); pose(null); };
+$("mStress").onclick = () => { mode = "stress"; if (M.open[lc] !== undefined) setAngle(M.open[lc]); apply(); pose(null); };
+$("lc").onchange = e => { lc = e.target.value; if (M.open[lc] !== undefined) setAngle(M.open[lc]); else if (mode === "stress") setAngle(0); if (mode !== "stress") mode = "stress"; apply(); pose(null); };
+$("sExp").oninput = e => { anim = null; explode = e.target.value / 100; $("oExp").textContent = e.target.value + " %"; pose(null); };
+$("sAng").oninput = e => { anim = null; setAngle(+e.target.value); pose(null); };
+for (const id of ["cCar", "cGlass", "cWheel", "cEdge"]) $(id).onchange = () => { apply(); pose(null); };
+for (const [id, v] of [["vRear", "rear"], ["vIso", "iso"], ["vSide", "side"], ["vTop", "top"], ["vHinge", "hinge"]]) $(id).onclick = () => view(v);
+fetch("model.json").then(r => r.json()).then(j => { M = j; build(); resize(); requestAnimationFrame(tick); })
+  .catch(err => { $("load").textContent = L("loadErr") + err.message; });
+}
+</script>
+</body>
+</html>
